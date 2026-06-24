@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+    stages {
+        stage('cleanUp') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout SCM') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Weys230/Projet-m1res-2526.git'
+            }
+        }
+ 
+        stage('Install Docker') {
+            steps {
+                // Utilisation des triples guillemets pour exécuter un bloc Bash complet proprement
+                sh '''
+                    echo "=== 1. Nettoyage des paquets conflictuels ==="
+                    sudo apt-get remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc || true
+ 
+                    echo "=== 2. Configuration des prérequis et clés ==="
+                    sudo apt-get update
+                    sudo apt-get install -y ca-certificates curl software-properties-common
+                    sudo install -m 0755 -d /etc/apt/keyrings
+                    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+                    sudo chmod a+r /etc/apt/keyrings/docker.asc
+ 
+                    echo "=== 3. Ajout du dépôt officiel Docker ==="
+                    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF > /dev/null
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+ 
+                    echo "=== 4. Installation de Docker Engine ==="
+                    sudo apt-get update
+                    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+ 
+                    echo "=== 5. Configuration des droits et services ==="
+                    sudo chmod 666 /var/run/docker.sock
+                    sudo usermod -aG docker jenkins
+                    sudo usermod -aG docker weys || true
+                    sudo systemctl restart docker.service
+                    # Ajout de --no-pager pour que Jenkins n'attende pas d'interaction clavier
+                    sudo systemctl status docker.service --no-pager
+                '''
+            }
+        }
+        stage('build-image-ubuntu-nginx') {
+            steps {
+                script {
+                    echo "=== Construction de l'image Docker ==="
+                    sh 'docker build -t mynginx .'
+                    echo "=== Ajout du tag v0.1 ==="
+                    sh 'docker tag mynginx:latest mynginx:v0.1'
+                    echo "=== Vérification des images disponibles ==="
+                    sh 'docker image ls'
+                }
+            }
+        }
+    }
+}
