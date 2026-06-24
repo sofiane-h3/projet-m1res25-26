@@ -1,27 +1,56 @@
-pipeline {
-    agent any
-       stages {
-          stage('CleanUp de Workspace'){
-             steps {
-                cleanWs()
-             }
-         }
-        stage('Cloner le GitHub'){
-           steps {
-                 git branch: 'main', url: 'https://github.com/srcmed/depotOnline26.git'
-            }
-         }
-           stage('install Docker'){
-              steps {
-                  sh 'sudo apt autoremove docker.io docker-compose -y'
-                  sh 'sudo apt update'
-                  sh 'sudo apt install apt-transport-https ca-certificates curl software-properties-common -y'
-                  sh 'sudo apt install docker.io -y'
-                  sh 'sudo apt update'
-                  sh 'sudo chmod 666 /var/run/docker.sock'
-                  sh 'sudo usermod -aG docker $USER'
-                  sh 'sudo systemctl restart docker.service'
-              }
-          }
-     }
+```groovy
+stage('install Docker'){
+    steps {
+        sh '''
+            echo "=========================================="
+            echo " INSTALLATION DOCKER OFFICIEL             "
+            echo "=========================================="
+
+            sudo apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc || true
+            sudo apt update -y
+
+            sudo apt install -y ca-certificates curl
+            sudo install -m 0755 -d /etc/apt/keyrings
+
+            sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+            sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+            sudo tee /etc/apt/sources.list.d/docker.sources <<EOF > /dev/null
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+Components: stable
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+            sudo apt update -y
+            sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+            echo "=========================================="
+            echo " CONFIGURATION DOCKER                     "
+            echo "=========================================="
+
+            sudo systemctl enable docker
+            sudo systemctl start docker
+
+            sudo chmod 666 /var/run/docker.sock
+            sudo usermod -aG docker jenkins || true
+
+            echo "=========================================="
+            echo " CREATION CONTENEUR TEST                  "
+            echo "=========================================="
+
+            sudo docker rm -f nginx-test || true
+            sudo docker run -d --name nginx-test -p 8081:80 nginx
+
+            echo "=========================================="
+            echo " VERIFICATION                             "
+            echo "=========================================="
+
+            sudo docker --version
+            sudo docker ps -a
+        '''
+    }
 }
+```
