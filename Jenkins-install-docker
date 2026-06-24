@@ -1,21 +1,47 @@
 ```groovy
-stage('install Docker'){
-    steps {
-        sh '''
-            echo "=========================================="
-            echo " INSTALLATION DOCKER OFFICIEL             "
-            echo "=========================================="
+pipeline {
+    agent any
 
-            sudo apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc || true
-            sudo apt update -y
+    stages {
+        stage('Checkout SCM') {
+            steps {
+                checkout scm
+            }
+        }
 
-            sudo apt install -y ca-certificates curl
-            sudo install -m 0755 -d /etc/apt/keyrings
+        stage('CleanUp de Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
 
-            sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-            sudo chmod a+r /etc/apt/keyrings/docker.asc
+        stage('Cloner le GitHub') {
+            steps {
+                git branch: 'main', url: 'https://github.com/srcmed/depotOnline26.git'
+            }
+        }
 
-            sudo tee /etc/apt/sources.list.d/docker.sources <<EOF > /dev/null
+        stage('install Docker') {
+            steps {
+                sh '''
+                    echo "=========================================="
+                    echo " 1. Nettoyage et préparation du système   "
+                    echo "=========================================="
+
+                    sudo apt remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc || true
+                    sudo apt update -y
+
+                    echo "=========================================="
+                    echo " 2. Installation de Docker Officiel       "
+                    echo "=========================================="
+
+                    sudo apt install -y ca-certificates curl
+                    sudo install -m 0755 -d /etc/apt/keyrings
+
+                    sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+                    sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+                    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF > /dev/null
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu
 Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
@@ -24,33 +50,40 @@ Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-            sudo apt update -y
-            sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                    sudo apt update -y
+                    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-            echo "=========================================="
-            echo " CONFIGURATION DOCKER                     "
-            echo "=========================================="
+                    echo "=========================================="
+                    echo " 3. Droits et configuration Docker        "
+                    echo "=========================================="
 
-            sudo systemctl enable docker
-            sudo systemctl start docker
+                    sudo systemctl enable docker
+                    sudo systemctl start docker
 
-            sudo chmod 666 /var/run/docker.sock
-            sudo usermod -aG docker jenkins || true
+                    sudo chmod 666 /var/run/docker.sock
+                    sudo usermod -aG docker jenkins || true
 
-            echo "=========================================="
-            echo " CREATION CONTENEUR TEST                  "
-            echo "=========================================="
+                    echo "=========================================="
+                    echo " 4. Création du conteneur Nginx           "
+                    echo "=========================================="
 
-            sudo docker rm -f nginx-test || true
-            sudo docker run -d --name nginx-test -p 8081:80 nginx
+                    sudo docker rm -f nginx-test || true
+                    sudo docker run -d --name nginx-test -p 8081:80 nginx
 
-            echo "=========================================="
-            echo " VERIFICATION                             "
-            echo "=========================================="
+                    echo "=========================================="
+                    echo " 5. Vérification Docker                   "
+                    echo "=========================================="
 
-            sudo docker --version
-            sudo docker ps -a
-        '''
+                    sudo docker --version
+                    sudo docker ps -a
+
+                    echo "=========================================="
+                    echo " Docker installé et conteneur créé         "
+                    echo " Ouvre : http://localhost:8081             "
+                    echo "=========================================="
+                '''
+            }
+        }
     }
 }
 ```
